@@ -1,11 +1,23 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Habit, UserProfile, FinanceData, SavingsStep, ExpenseCategory } from '../types';
+import type {
+  Habit,
+  UserProfile,
+  FinanceData,
+  SavingsStep,
+  ExpenseCategory,
+  IncomeEntry,
+  JournalEntry,
+  Asset,
+  TargetGoal,
+} from '../types';
+import * as sync from '../lib/sync';
 
 interface AppState {
   habits: Habit[];
   profile: UserProfile;
   finance: FinanceData;
+  journalEntries: JournalEntry[];
 
   // Habit actions
   addHabit: (habit: Habit) => void;
@@ -27,11 +39,35 @@ interface AppState {
   deleteExpenseCategory: (id: string) => void;
   confirmExpenseDay: (catId: string, date: string, amount: number) => void;
   removeExpenseDay: (catId: string, date: string) => void;
+
+  // Journal
+  addJournalEntry: (entry: JournalEntry) => void;
+  updateJournalEntry: (id: string, updates: Partial<JournalEntry>) => void;
+  deleteJournalEntry: (id: string) => void;
+
+  // Assets
+  addAsset: (asset: Asset) => void;
+  updateAsset: (id: string, updates: Partial<Asset>) => void;
+  deleteAsset: (id: string) => void;
+
+  // Targets
+  addTarget: (target: TargetGoal) => void;
+  updateTarget: (id: string, updates: Partial<TargetGoal>) => void;
+  deleteTarget: (id: string) => void;
+
+  // Income actions
+  addIncomeEntry: (entry: IncomeEntry) => void;
+  updateIncomeEntry: (id: string, updates: Partial<IncomeEntry>) => void;
+  deleteIncomeEntry: (id: string) => void;
+
+  // Cloud sync
+  loadFromCloud: (userId: string) => Promise<void>;
+  resetState: () => void;
 }
 
 export const useStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       habits: [],
       profile: {
         name: 'Your Name',
@@ -44,20 +80,32 @@ export const useStore = create<AppState>()(
         annualSavingsGoal: 0,
         savingsSteps: [],
         expenseCategories: [],
+        incomeEntries: [],
+        assets: [],
+        targets: [],
+      },
+      journalEntries: [],
+
+      addHabit: (habit) => {
+        set((s) => ({ habits: [...s.habits, habit] }));
+        sync.pushAddHabit(habit);
       },
 
-      addHabit: (habit) =>
-        set((s) => ({ habits: [...s.habits, habit] })),
-
-      updateHabit: (id, updates) =>
+      updateHabit: (id, updates) => {
         set((s) => ({
           habits: s.habits.map((h) => (h.id === id ? { ...h, ...updates } : h)),
-        })),
+        }));
+        sync.pushUpdateHabit(id, updates);
+      },
 
-      deleteHabit: (id) =>
-        set((s) => ({ habits: s.habits.filter((h) => h.id !== id) })),
+      deleteHabit: (id) => {
+        set((s) => ({ habits: s.habits.filter((h) => h.id !== id) }));
+        sync.pushDeleteHabit(id);
+      },
 
-      toggleHabitDay: (habitId, date) =>
+      toggleHabitDay: (habitId, date) => {
+        const habit = get().habits.find((h) => h.id === habitId);
+        const wasDone = habit?.completedDays.includes(date) ?? false;
         set((s) => ({
           habits: s.habits.map((h) => {
             if (h.id !== habitId) return h;
@@ -69,23 +117,31 @@ export const useStore = create<AppState>()(
                 : [...h.completedDays, date],
             };
           }),
-        })),
+        }));
+        sync.pushToggleHabitDay(habitId, date, !wasDone);
+      },
 
-      updateProfile: (updates) =>
-        set((s) => ({ profile: { ...s.profile, ...updates } })),
+      updateProfile: (updates) => {
+        set((s) => ({ profile: { ...s.profile, ...updates } }));
+        sync.pushUpdateProfile(updates);
+      },
 
-      updateAnnualGoal: (goal) =>
-        set((s) => ({ finance: { ...s.finance, annualSavingsGoal: goal } })),
+      updateAnnualGoal: (goal) => {
+        set((s) => ({ finance: { ...s.finance, annualSavingsGoal: goal } }));
+        sync.pushAnnualGoal(goal);
+      },
 
-      addSavingsStep: (step) =>
+      addSavingsStep: (step) => {
         set((s) => ({
           finance: {
             ...s.finance,
             savingsSteps: [...s.finance.savingsSteps, step],
           },
-        })),
+        }));
+        sync.pushAddSavingsStep(step);
+      },
 
-      updateSavingsStep: (id, updates) =>
+      updateSavingsStep: (id, updates) => {
         set((s) => ({
           finance: {
             ...s.finance,
@@ -93,17 +149,23 @@ export const useStore = create<AppState>()(
               st.id === id ? { ...st, ...updates } : st
             ),
           },
-        })),
+        }));
+        sync.pushUpdateSavingsStep(id, updates);
+      },
 
-      deleteSavingsStep: (id) =>
+      deleteSavingsStep: (id) => {
         set((s) => ({
           finance: {
             ...s.finance,
             savingsSteps: s.finance.savingsSteps.filter((st) => st.id !== id),
           },
-        })),
+        }));
+        sync.pushDeleteSavingsStep(id);
+      },
 
-      toggleSavingsDay: (stepId, date) =>
+      toggleSavingsDay: (stepId, date) => {
+        const step = get().finance.savingsSteps.find((st) => st.id === stepId);
+        const wasSkipped = step?.skippedDays.includes(date) ?? false;
         set((s) => ({
           finance: {
             ...s.finance,
@@ -118,17 +180,21 @@ export const useStore = create<AppState>()(
               };
             }),
           },
-        })),
+        }));
+        sync.pushToggleSavingsDay(stepId, date, !wasSkipped);
+      },
 
-      addExpenseCategory: (cat) =>
+      addExpenseCategory: (cat) => {
         set((s) => ({
           finance: {
             ...s.finance,
             expenseCategories: [...s.finance.expenseCategories, cat],
           },
-        })),
+        }));
+        sync.pushAddExpenseCategory(cat);
+      },
 
-      updateExpenseCategory: (id, updates) =>
+      updateExpenseCategory: (id, updates) => {
         set((s) => ({
           finance: {
             ...s.finance,
@@ -136,9 +202,11 @@ export const useStore = create<AppState>()(
               c.id === id ? { ...c, ...updates } : c
             ),
           },
-        })),
+        }));
+        sync.pushUpdateExpenseCategory(id, updates);
+      },
 
-      deleteExpenseCategory: (id) =>
+      deleteExpenseCategory: (id) => {
         set((s) => ({
           finance: {
             ...s.finance,
@@ -146,9 +214,11 @@ export const useStore = create<AppState>()(
               (c) => c.id !== id
             ),
           },
-        })),
+        }));
+        sync.pushDeleteExpenseCategory(id);
+      },
 
-      confirmExpenseDay: (catId, date, amount) =>
+      confirmExpenseDay: (catId, date, amount) => {
         set((s) => ({
           finance: {
             ...s.finance,
@@ -158,9 +228,11 @@ export const useStore = create<AppState>()(
               return { ...c, confirmedDays: [...filtered, { date, amount }] };
             }),
           },
-        })),
+        }));
+        sync.pushConfirmExpenseDay(catId, date, amount);
+      },
 
-      removeExpenseDay: (catId, date) =>
+      removeExpenseDay: (catId, date) => {
         set((s) => ({
           finance: {
             ...s.finance,
@@ -172,7 +244,150 @@ export const useStore = create<AppState>()(
               };
             }),
           },
+        }));
+        sync.pushRemoveExpenseDay(catId, date);
+      },
+
+      addJournalEntry: (entry) => {
+        set((s) => ({ journalEntries: [...s.journalEntries, entry] }));
+        sync.pushAddJournal(entry);
+      },
+
+      updateJournalEntry: (id, updates) =>
+        set((s) => ({
+          journalEntries: s.journalEntries.map((j) =>
+            j.id === id ? { ...j, ...updates } : j
+          ),
         })),
+
+      deleteJournalEntry: (id) => {
+        set((s) => ({ journalEntries: s.journalEntries.filter((j) => j.id !== id) }));
+        sync.pushDeleteJournal(id);
+      },
+
+      addAsset: (asset) => {
+        set((s) => ({
+          finance: {
+            ...s.finance,
+            assets: [...(s.finance.assets ?? []), asset],
+          },
+        }));
+        sync.pushAddAsset(asset);
+      },
+
+      updateAsset: (id, updates) => {
+        set((s) => ({
+          finance: {
+            ...s.finance,
+            assets: (s.finance.assets ?? []).map((a) =>
+              a.id === id ? { ...a, ...updates } : a
+            ),
+          },
+        }));
+        sync.pushUpdateAsset(id, updates);
+      },
+
+      deleteAsset: (id) => {
+        set((s) => ({
+          finance: {
+            ...s.finance,
+            assets: (s.finance.assets ?? []).filter((a) => a.id !== id),
+          },
+        }));
+        sync.pushDeleteAsset(id);
+      },
+
+      addTarget: (target) => {
+        set((s) => ({
+          finance: {
+            ...s.finance,
+            targets: [...(s.finance.targets ?? []), target],
+          },
+        }));
+        sync.pushAddTarget(target);
+      },
+
+      updateTarget: (id, updates) => {
+        set((s) => ({
+          finance: {
+            ...s.finance,
+            targets: (s.finance.targets ?? []).map((t) =>
+              t.id === id ? { ...t, ...updates } : t
+            ),
+          },
+        }));
+        sync.pushUpdateTarget(id, updates);
+      },
+
+      deleteTarget: (id) => {
+        set((s) => ({
+          finance: {
+            ...s.finance,
+            targets: (s.finance.targets ?? []).filter((t) => t.id !== id),
+          },
+        }));
+        sync.pushDeleteTarget(id);
+      },
+
+      addIncomeEntry: (entry) => {
+        set((s) => ({
+          finance: {
+            ...s.finance,
+            incomeEntries: [...(s.finance.incomeEntries ?? []), entry],
+          },
+        }));
+        sync.pushAddIncome(entry);
+      },
+
+      updateIncomeEntry: (id, updates) =>
+        set((s) => ({
+          finance: {
+            ...s.finance,
+            incomeEntries: (s.finance.incomeEntries ?? []).map((e) =>
+              e.id === id ? { ...e, ...updates } : e
+            ),
+          },
+        })),
+
+      deleteIncomeEntry: (id) => {
+        set((s) => ({
+          finance: {
+            ...s.finance,
+            incomeEntries: (s.finance.incomeEntries ?? []).filter(
+              (e) => e.id !== id
+            ),
+          },
+        }));
+        sync.pushDeleteIncome(id);
+      },
+
+      // Cloud sync: load all data from Supabase into store
+      loadFromCloud: async (userId: string) => {
+        const data = await sync.pullAllData(userId);
+        if (!data) return;
+        set({
+          habits: data.habits,
+          journalEntries: data.journalEntries,
+          finance: data.finance,
+          ...(data.profile ? { profile: data.profile } : {}),
+        });
+      },
+
+      // Reset to defaults (used on sign-out)
+      resetState: () =>
+        set({
+          habits: [],
+          journalEntries: [],
+          profile: { name: 'Your Name', avatar: '', bio: '', goals: [], email: '' },
+          finance: {
+            annualSavingsGoal: 0,
+            savingsSteps: [],
+            expenseCategories: [],
+            incomeEntries: [],
+            assets: [],
+            targets: [],
+          },
+        }),
     }),
     { name: 'habit-tracker-store' }
   )

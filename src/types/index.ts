@@ -13,6 +13,14 @@ export interface Habit {
   createdAt: string;
 }
 
+export interface JournalEntry {
+  id: string;
+  date: string; // ISO date string
+  title: string;
+  description?: string;
+  color: string;
+}
+
 export interface UserProfile {
   name: string;
   avatar: string; // URL or initials
@@ -41,8 +49,39 @@ export interface ExpenseCategory {
   confirmedDays: { date: string; amount: number }[];
 }
 
+export interface IncomeEntry {
+  id: string;
+  date: string; // ISO date string
+  amount: number;
+  source: string; // e.g. "Salary", "Freelance"
+  description?: string;
+}
+
 export interface FinanceData {
   annualSavingsGoal: number;
   savingsSteps: SavingsStep[];
   expenseCategories: ExpenseCategory[];
+  incomeEntries: IncomeEntry[];
+  assets: Asset[];
+  targets: TargetGoal[];
+}
+
+export type AssetType = 'account' | 'cash' | 'investment' | 'card';
+
+export interface Asset {
+  id: string;
+  name: string;
+  type: AssetType;
+  balance: number; // cards can be negative (owed)
+  creditLimit?: number; // for cards: display only, not added to assets
+  institution?: string;
+}
+
+export interface TargetGoal {
+  id: string;
+  name: string;
+  goalAmount: number;
+  assignedAmount: number; // how much currently allocated
+  description?: string;
+}
 }

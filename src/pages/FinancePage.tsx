@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { FinanceCalendar } from '../components/FinanceCalendar';
-import type { SavingsStep, ExpenseCategory } from '../types';
+import type { SavingsStep, ExpenseCategory, IncomeEntry, Asset, TargetGoal } from '../types';
 import {
   uuid,
   toISO,
@@ -12,7 +12,7 @@ import {
 } from '../utils/dateUtils';
 import {
   Plus, Pencil, Trash2, DollarSign, Target,
-  TrendingDown, ChevronDown, ChevronUp,
+  TrendingDown, TrendingUp, ChevronDown, ChevronUp, Wallet,
 } from 'lucide-react';
 import { parseISO, getMonth } from 'date-fns';
 
@@ -245,6 +245,290 @@ const ExpenseCategoryForm: React.FC<{
   );
 };
 
+// ────────────────────── Income form ──────────────────────
+
+const IncomeEntryForm: React.FC<{
+  initial?: Partial<IncomeEntry>;
+  onSave: (entry: IncomeEntry) => void;
+  onCancel: () => void;
+}> = ({ initial, onSave, onCancel }) => {
+  const today = toISO(new Date());
+  const [source, setSource] = useState(initial?.source ?? '');
+  const [amount, setAmount] = useState(String(initial?.amount ?? ''));
+  const [date, setDate] = useState(initial?.date ?? today);
+  const [description, setDescription] = useState(initial?.description ?? '');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!source.trim() || !amount) return;
+    onSave({
+      id: initial?.id ?? uuid(),
+      source: source.trim(),
+      amount: parseFloat(amount),
+      date,
+      description: description || undefined,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Source *</label>
+          <input
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            placeholder="e.g. Salary, Freelance"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Amount ($) *</label>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="e.g. 3000"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Date *</label>
+          <input
+            type="date"
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={date}
+            max={toISO(new Date())}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Description</label>
+        <input
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional note"
+        />
+      </div>
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg text-sm"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 rounded-lg text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+};
+
+const AssetForm: React.FC<{
+  initial?: Partial<Asset>;
+  onSave: (a: Asset) => void;
+  onCancel: () => void;
+}> = ({ initial, onSave, onCancel }) => {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [type, setType] = useState<Asset['type']>(initial?.type ?? 'account');
+  const [balance, setBalance] = useState(String(initial?.balance ?? ''));
+  const [creditLimit, setCreditLimit] = useState(String(initial?.creditLimit ?? ''));
+  const [institution, setInstitution] = useState(initial?.institution ?? '');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || balance === '') return;
+    onSave({
+      id: initial?.id ?? uuid(),
+      name: name.trim(),
+      type,
+      balance: parseFloat(balance),
+      creditLimit: creditLimit ? parseFloat(creditLimit) : undefined,
+      institution: institution.trim() || undefined,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Name *</label>
+          <input
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Checking, Cash"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Type *</label>
+          <select
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={type}
+            onChange={(e) => setType(e.target.value as Asset['type'])}
+          >
+            <option value="account">Account</option>
+            <option value="cash">Cash</option>
+            <option value="investment">Investment</option>
+            <option value="card">Card (credit/debit)</option>
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Current balance *</label>
+          <input
+            type="number"
+            step="0.01"
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={balance}
+            onChange={(e) => setBalance(e.target.value)}
+            placeholder="e.g. 1200"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Credit limit (cards)</label>
+          <input
+            type="number"
+            step="0.01"
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={creditLimit}
+            onChange={(e) => setCreditLimit(e.target.value)}
+            placeholder="e.g. 5000"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm text-gray-400 mb-1">Institution</label>
+        <input
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+          value={institution}
+          onChange={(e) => setInstitution(e.target.value)}
+          placeholder="Bank or provider"
+        />
+      </div>
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg text-sm"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 rounded-lg text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+};
+
+const TargetForm: React.FC<{
+  initial?: Partial<TargetGoal>;
+  onSave: (t: TargetGoal) => void;
+  onCancel: () => void;
+}> = ({ initial, onSave, onCancel }) => {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [goal, setGoal] = useState(String(initial?.goalAmount ?? ''));
+  const [assigned, setAssigned] = useState(String(initial?.assignedAmount ?? ''));
+  const [description, setDescription] = useState(initial?.description ?? '');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || goal === '') return;
+    onSave({
+      id: initial?.id ?? uuid(),
+      name: name.trim(),
+      goalAmount: parseFloat(goal),
+      assignedAmount: assigned ? parseFloat(assigned) : 0,
+      description: description.trim() || undefined,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Target *</label>
+          <input
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Buy a house"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Goal amount ($) *</label>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={goal}
+            onChange={(e) => setGoal(e.target.value)}
+            required
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Assigned now ($)</label>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={assigned}
+            onChange={(e) => setAssigned(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Description</label>
+          <input
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional note"
+          />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg text-sm"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 rounded-lg text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+};
+
 // ────────────────────── Main Page ──────────────────────
 
 export const FinancePage: React.FC = () => {
@@ -254,10 +538,19 @@ export const FinancePage: React.FC = () => {
     addSavingsStep,
     updateSavingsStep,
     deleteSavingsStep,
+    toggleSavingsDay,
     addExpenseCategory,
     updateExpenseCategory,
     deleteExpenseCategory,
     confirmExpenseDay,
+    addIncomeEntry,
+    deleteIncomeEntry,
+    addAsset,
+    updateAsset,
+    deleteAsset,
+    addTarget,
+    updateTarget,
+    deleteTarget,
   } = useStore();
 
   const [editGoal, setEditGoal] = useState(false);
@@ -269,6 +562,11 @@ export const FinancePage: React.FC = () => {
   const [showCatForm, setShowCatForm] = useState(false);
   const [editingCat, setEditingCat] = useState<ExpenseCategory | null>(null);
   const [showCalendar, setShowCalendar] = useState(true);
+  const [showIncomeForm, setShowIncomeForm] = useState(false);
+  const [showAssetForm, setShowAssetForm] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [showTargetForm, setShowTargetForm] = useState(false);
+  const [editingTarget, setEditingTarget] = useState<TargetGoal | null>(null);
 
   // For expense logging: select category + date + amount
   const [logCatId, setLogCatId] = useState('');
@@ -310,6 +608,47 @@ export const FinancePage: React.FC = () => {
   }, [finance.expenseCategories]);
 
   const currentMonth = new Date().getMonth();
+
+  // Income summary
+  const incomeSummary = useMemo(() => {
+    const entries = finance.incomeEntries ?? [];
+    const totalIncome = entries.reduce((sum, e) => sum + e.amount, 0);
+    const monthlyIncome = Array(12).fill(0) as number[];
+    entries.forEach((e) => {
+      const m = getMonth(parseISO(e.date));
+      monthlyIncome[m] += e.amount;
+    });
+    return { totalIncome, monthlyIncome };
+  }, [finance.incomeEntries]);
+
+  // Total expenses across all categories for the year
+  const totalExpenses = useMemo(() => {
+    let total = 0;
+    finance.expenseCategories.forEach((cat) => {
+      cat.confirmedDays.forEach(({ amount }) => {
+        total += amount;
+      });
+    });
+    return total;
+  }, [finance.expenseCategories]);
+
+  const netBalance = incomeSummary.totalIncome - totalExpenses;
+
+  const assetsSummary = useMemo(() => {
+    const totals: Record<'account' | 'cash' | 'investment' | 'card', number> = {
+      account: 0,
+      cash: 0,
+      investment: 0,
+      card: 0,
+    };
+    finance.assets.forEach((a) => {
+      totals[a.type] += a.balance;
+    });
+    const totalPositive = totals.account + totals.cash + totals.investment;
+    const totalCards = totals.card; // expected negative for credit usage
+    const netWorth = totalPositive + totalCards;
+    return { ...totals, totalPositive, totalCards, netWorth };
+  }, [finance.assets]);
 
   const handleLogExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -435,6 +774,8 @@ export const FinancePage: React.FC = () => {
             <FinanceCalendar
               savingsSteps={finance.savingsSteps}
               expenseCategories={finance.expenseCategories}
+              incomeEntries={finance.incomeEntries ?? []}
+              onToggleSavingsDay={toggleSavingsDay}
             />
             <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-500">
               <div className="flex items-center gap-1.5">
@@ -452,6 +793,10 @@ export const FinancePage: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <span className="inline-block w-3 h-3 rounded-sm bg-red-500" />
                 Expense (over budget)
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm bg-sky-400" />
+                Income
               </div>
             </div>
           </div>
@@ -712,11 +1057,337 @@ export const FinancePage: React.FC = () => {
         </div>
       )}
 
+      {/* Financial Overview */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 mb-6">
+        <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+          <Wallet size={18} className="text-sky-400" />
+          Financial Overview — {YEAR}
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="bg-gray-900 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-sky-400">
+              ${incomeSummary.totalIncome.toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">Total Income</div>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-orange-400">
+              ${totalExpenses.toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">Total Expenses</div>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-green-400">
+              ${savingsSummary.saved.toFixed(0)}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">Total Saved</div>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-orange-300">
+              ${Math.abs(assetsSummary.totalCards).toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">Cards in use</div>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-3 text-center">
+            <div
+              className={`text-2xl font-bold ${
+                netBalance >= 0 ? 'text-green-400' : 'text-red-400'
+              }`}
+            >
+              {netBalance >= 0 ? '+' : '-'}${Math.abs(netBalance).toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">Net Balance</div>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-3 text-center col-span-2 md:col-span-1">
+            <div className={`text-2xl font-bold ${assetsSummary.netWorth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              ${assetsSummary.netWorth.toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">Net Worth (assets + cards)</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Assets & Accounts */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white font-semibold flex items-center gap-2">
+            <DollarSign size={18} className="text-emerald-400" />
+            Assets & cards
+          </h2>
+          <button
+            onClick={() => {
+              setEditingAsset(null);
+              setShowAssetForm((v) => !v);
+            }}
+            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
+          >
+            <Plus size={14} /> Add asset
+          </button>
+        </div>
+
+        {showAssetForm && (
+          <div className="bg-gray-900 rounded-lg p-4 mb-4">
+            <AssetForm
+              initial={editingAsset ?? undefined}
+              onSave={(a) => {
+                if (editingAsset) updateAsset(a.id, a);
+                else addAsset(a);
+                setShowAssetForm(false);
+                setEditingAsset(null);
+              }}
+              onCancel={() => {
+                setShowAssetForm(false);
+                setEditingAsset(null);
+              }}
+            />
+          </div>
+        )}
+
+        {finance.assets.length === 0 ? (
+          <p className="text-gray-500 text-sm">
+            No assets yet. Add accounts, cash, investments, or cards to see your real budget.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-400 text-xs">
+                  <th className="pb-2 pr-3">Name</th>
+                  <th className="pb-2 pr-3">Type</th>
+                  <th className="pb-2 pr-3 text-right">Balance</th>
+                  <th className="pb-2 pr-3 text-right">Credit limit</th>
+                  <th className="pb-2 pr-3">Institution</th>
+                  <th className="pb-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {finance.assets.map((a) => (
+                  <tr key={a.id} className="border-t border-gray-700">
+                    <td className="py-2 pr-3 text-white">{a.name}</td>
+                    <td className="py-2 pr-3 text-gray-400 capitalize">{a.type}</td>
+                    <td
+                      className={`py-2 pr-3 text-right ${
+                        a.balance < 0 ? 'text-red-400' : 'text-green-400'
+                      }`}
+                    >
+                      ${a.balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-2 pr-3 text-right text-gray-400">
+                      {a.creditLimit ? `$${a.creditLimit.toLocaleString()}` : '—'}
+                    </td>
+                    <td className="py-2 pr-3 text-gray-400">{a.institution ?? '—'}</td>
+                    <td className="py-2 text-right flex justify-end gap-1">
+                      <button
+                        onClick={() => {
+                          setEditingAsset(a);
+                          setShowAssetForm(true);
+                        }}
+                        className="p-1.5 text-gray-500 hover:text-indigo-400"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('Delete this asset?')) deleteAsset(a.id);
+                        }}
+                        className="p-1.5 text-gray-500 hover:text-red-400"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs">
+          <div className="bg-gray-900 rounded-lg p-3">
+            <div className="text-gray-400">Accounts</div>
+            <div className="text-white text-lg font-semibold">${assetsSummary.account.toLocaleString()}</div>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-3">
+            <div className="text-gray-400">Cash</div>
+            <div className="text-white text-lg font-semibold">${assetsSummary.cash.toLocaleString()}</div>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-3">
+            <div className="text-gray-400">Investments</div>
+            <div className="text-white text-lg font-semibold">${assetsSummary.investment.toLocaleString()}</div>
+          </div>
+          <div className="bg-gray-900 rounded-lg p-3">
+            <div className="text-gray-400">Cards (owed)</div>
+            <div className="text-orange-300 text-lg font-semibold">${assetsSummary.totalCards.toLocaleString()}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Income Section */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white font-semibold flex items-center gap-2">
+            <TrendingUp size={18} className="text-sky-400" />
+            Income
+          </h2>
+          <button
+            onClick={() => setShowIncomeForm((v) => !v)}
+            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
+          >
+            <Plus size={14} /> Add Income
+          </button>
+        </div>
+
+        {showIncomeForm && (
+          <div className="bg-gray-900 rounded-lg p-4 mb-4">
+            <IncomeEntryForm
+              onSave={(entry) => {
+                addIncomeEntry(entry);
+                setShowIncomeForm(false);
+              }}
+              onCancel={() => setShowIncomeForm(false)}
+            />
+          </div>
+        )}
+
+        {(finance.incomeEntries ?? []).length === 0 ? (
+          <p className="text-gray-500 text-sm">
+            No income recorded yet. Add entries to see your full financial picture!
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {[...(finance.incomeEntries ?? [])]
+              .sort((a, b) => b.date.localeCompare(a.date))
+              .map((entry) => (
+                <div
+                  key={entry.id}
+                  className="bg-gray-900 rounded-lg p-3 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="inline-block w-3 h-3 rounded-full bg-sky-400" />
+                    <div>
+                      <div className="text-white font-medium text-sm">
+                        {entry.source}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {entry.date}
+                        {entry.description && ` · ${entry.description}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sky-400 font-semibold text-sm">
+                      +${entry.amount.toLocaleString()}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this income entry?'))
+                          deleteIncomeEntry(entry.id);
+                      }}
+                      className="p-1.5 text-gray-500 hover:text-red-400"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+
+      {/* Targets */}
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white font-semibold flex items-center gap-2">
+            <Target size={18} className="text-indigo-400" />
+            Targets
+          </h2>
+          <button
+            onClick={() => {
+              setEditingTarget(null);
+              setShowTargetForm((v) => !v);
+            }}
+            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
+          >
+            <Plus size={14} /> Add target
+          </button>
+        </div>
+
+        {showTargetForm && (
+          <div className="bg-gray-900 rounded-lg p-4 mb-4">
+            <TargetForm
+              initial={editingTarget ?? undefined}
+              onSave={(t) => {
+                if (editingTarget) updateTarget(t.id, t);
+                else addTarget(t);
+                setShowTargetForm(false);
+                setEditingTarget(null);
+              }}
+              onCancel={() => {
+                setShowTargetForm(false);
+                setEditingTarget(null);
+              }}
+            />
+          </div>
+        )}
+
+        {finance.targets.length === 0 ? (
+          <p className="text-gray-500 text-sm">
+            No targets yet. Add goals like “Buy a house” and assign money toward them.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {finance.targets.map((t) => {
+              const pct = t.goalAmount > 0 ? Math.min(100, Math.round((t.assignedAmount / t.goalAmount) * 100)) : 0;
+              return (
+                <div key={t.id} className="bg-gray-900 rounded-lg p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-white font-medium text-sm">{t.name}</div>
+                      <div className="text-xs text-gray-500">
+                        ${t.assignedAmount.toLocaleString()} of ${t.goalAmount.toLocaleString()} ({pct}%)
+                      </div>
+                      {t.description && (
+                        <div className="text-gray-500 text-xs mt-1">{t.description}</div>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => {
+                          setEditingTarget(t);
+                          setShowTargetForm(true);
+                        }}
+                        className="p-1.5 text-gray-500 hover:text-indigo-400"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('Delete this target?')) deleteTarget(t.id);
+                        }}
+                        className="p-1.5 text-gray-500 hover:text-red-400"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden mt-2">
+                    <div
+                      className="h-full bg-indigo-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Monthly Expense Summary */}
-      {finance.expenseCategories.length > 0 && (
+      {(finance.expenseCategories.length > 0 || (finance.incomeEntries ?? []).length > 0) && (
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
           <h2 className="text-white font-semibold mb-4">
-            Monthly Expense Summary
+            Monthly Financial Summary
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -740,6 +1411,27 @@ export const FinancePage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
+                {/* Income row */}
+                <tr className="border-t border-gray-700">
+                  <td className="py-2 pr-4">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full bg-sky-400" />
+                      <span className="text-sky-400 font-medium">Income</span>
+                    </div>
+                  </td>
+                  {incomeSummary.monthlyIncome.map((total, i) => (
+                    <td
+                      key={i}
+                      className={`text-right px-1 py-2 ${
+                        total > 0 ? 'text-sky-400' : 'text-gray-600'
+                      }`}
+                    >
+                      {total > 0 ? `$${total.toFixed(0)}` : '-'}
+                    </td>
+                  ))}
+                </tr>
+
+                {/* Expense category rows */}
                 {finance.expenseCategories.map((cat) => {
                   const totals = monthlyExpenseTotals[cat.id] ?? Array(12).fill(0);
                   return (
@@ -773,6 +1465,38 @@ export const FinancePage: React.FC = () => {
                     </tr>
                   );
                 })}
+
+                {/* Net row */}
+                <tr className="border-t-2 border-gray-600">
+                  <td className="py-2 pr-4">
+                    <span className="text-white font-semibold">Net</span>
+                  </td>
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const income = incomeSummary.monthlyIncome[i];
+                    const expenses = finance.expenseCategories.reduce(
+                      (sum, cat) =>
+                        sum + (monthlyExpenseTotals[cat.id]?.[i] ?? 0),
+                      0
+                    );
+                    const net = income - expenses;
+                    return (
+                      <td
+                        key={i}
+                        className={`text-right px-1 py-2 font-semibold ${
+                          net > 0
+                            ? 'text-green-400'
+                            : net < 0
+                            ? 'text-red-400'
+                            : 'text-gray-600'
+                        }`}
+                      >
+                        {income > 0 || expenses > 0
+                          ? `${net >= 0 ? '+' : '-'}$${Math.abs(net).toFixed(0)}`
+                          : '-'}
+                      </td>
+                    );
+                  })}
+                </tr>
               </tbody>
             </table>
           </div>

@@ -5,8 +5,8 @@ import {
   isSavingsPlannedForDay,
   YEAR,
 } from '../utils/dateUtils';
-import type { SavingsStep, ExpenseCategory } from '../types';
-import { format, getMonth, parseISO } from 'date-fns';
+import type { SavingsStep, ExpenseCategory, IncomeEntry } from '../types';
+import { format, getMonth, parseISO, isFuture } from 'date-fns';
 
 const MONTH_NAMES_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -22,13 +22,17 @@ const DAY_LABELS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 interface FinanceCalendarProps {
   savingsSteps: SavingsStep[];
   expenseCategories: ExpenseCategory[];
+  incomeEntries?: IncomeEntry[];
   year?: number;
+  onToggleSavingsDay?: (stepId: string, date: string) => void;
 }
 
 export const FinanceCalendar: React.FC<FinanceCalendarProps> = ({
   savingsSteps,
   expenseCategories,
+  incomeEntries = [],
   year = YEAR,
+  onToggleSavingsDay,
 }) => {
   const [tooltip, setTooltip] = useState<{
     x: number;
@@ -57,12 +61,12 @@ export const FinanceCalendar: React.FC<FinanceCalendarProps> = ({
   const dayMap = useMemo(() => {
     const map = new Map<
       string,
-      { name: string; color: string; label: string }[]
+      { name: string; color: string; label: string; stepId?: string }[]
     >();
 
     days.forEach((day) => {
       const iso = toISO(day);
-      const items: { name: string; color: string; label: string }[] = [];
+      const items: { name: string; color: string; label: string; stepId?: string }[] = [];
 
       // Savings steps
       savingsSteps.forEach((st) => {
@@ -75,6 +79,7 @@ export const FinanceCalendar: React.FC<FinanceCalendarProps> = ({
             label: skipped
               ? `${st.name}: skipped (-$${st.savingPerDay})`
               : `${st.name}: +$${st.savingPerDay} saved`,
+            stepId: st.id,
           });
         }
       });
@@ -96,10 +101,21 @@ export const FinanceCalendar: React.FC<FinanceCalendarProps> = ({
         }
       });
 
+      // Income entries
+      (incomeEntries ?? []).forEach((entry) => {
+        if (entry.date === iso) {
+          items.push({
+            name: entry.source,
+            color: '#38bdf8', // sky blue for income
+            label: `Income: +$${entry.amount} (${entry.source})`,
+          });
+        }
+      });
+
       if (items.length > 0) map.set(iso, items);
     });
     return map;
-  }, [days, savingsSteps, expenseCategories, monthlyTotals]);
+  }, [days, savingsSteps, expenseCategories, incomeEntries, monthlyTotals]);
 
   // Month label positions
   const monthPositions = useMemo(() => {
@@ -127,6 +143,7 @@ export const FinanceCalendar: React.FC<FinanceCalendarProps> = ({
     const y = 20 + row * (CELL_SIZE + CELL_GAP);
 
     const items = dayMap.get(iso);
+    const canToggle = onToggleSavingsDay && !isFuture(day);
 
     if (!items || items.length === 0) {
       return (
@@ -166,7 +183,12 @@ export const FinanceCalendar: React.FC<FinanceCalendarProps> = ({
             height={CELL_SIZE}
             rx={i === 0 ? 2 : 0}
             fill={item.color}
-            className="cursor-pointer"
+            className={canToggle && item.stepId ? 'cursor-pointer' : 'cursor-default'}
+            onClick={() => {
+              if (canToggle && item.stepId) {
+                onToggleSavingsDay(item.stepId, iso);
+              }
+            }}
             onMouseEnter={(e) =>
               setTooltip({
                 x: e.clientX,
