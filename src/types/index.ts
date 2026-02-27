@@ -84,4 +84,3 @@ export interface TargetGoal {
   assignedAmount: number; // how much currently allocated
   description?: string;
 }
-}
